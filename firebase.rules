@@ -1,0 +1,36 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Shots collection - only allow authenticated users to create their own shots
+    match /shots/{shotId} {
+      allow read: if true;
+
+  allow create: if request.auth != null
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.mediaUrl is string
+        && request.resource.data.createdAt is timestamp
+                    && (
+                      !("caption" in request.resource.data)
+                      || request.resource.data.caption is string
+                      || request.resource.data.caption == null
+                    )
+                    && (
+                      !("category" in request.resource.data)
+                      || request.resource.data.category is string
+                      || request.resource.data.category == null
+                    );
+
+      allow delete: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+
+      allow update: if false; // updates via server/admin only for now
+    }
+
+    // users collection - readable, writable only by the user
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      allow update: if request.auth != null && request.auth.uid == userId;
+      allow delete: if false;
+    }
+  }
+}

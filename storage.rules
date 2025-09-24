@@ -1,0 +1,19 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    // Allow read for all
+    match /{allPaths=**} {
+      allow read: if true;
+    }
+
+    // Restrict uploads under shots/ to authenticated users and basic checks
+    match /shots/{userId}/{fileName=**} {
+      allow write: if request.auth != null
+                   && request.auth.uid == userId
+                   && request.resource.size < 5 * 1024 * 1024 // 5MB
+                   && request.resource.contentType.matches('image/.*');
+
+      allow delete: if request.auth != null && get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+  }
+}

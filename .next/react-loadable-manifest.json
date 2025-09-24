@@ -1,0 +1,50 @@
+{
+  "app\\(auth)\\login\\page.tsx -> ../../../lib/firebase": {
+    "id": "app\\(auth)\\login\\page.tsx -> ../../../lib/firebase",
+    "files": [
+      "static/chunks/_app-pages-browser_src_lib_firebase_ts-_56162.js"
+    ]
+  },
+  "app\\(auth)\\signup\\page.tsx -> ../../../lib/firebase": {
+    "id": "app\\(auth)\\signup\\page.tsx -> ../../../lib/firebase",
+    "files": [
+      "static/chunks/_app-pages-browser_src_lib_firebase_ts-_56163.js"
+    ]
+  },
+  "app\\upload\\page.tsx -> ../../lib/firebase": {
+    "id": "app\\upload\\page.tsx -> ../../lib/firebase",
+    "files": [
+      "static/chunks/_app-pages-browser_src_lib_firebase_ts-_56160.js"
+    ]
+  },
+  "app\\upload\\page.tsx -> firebase/auth": {
+    "id": "app\\upload\\page.tsx -> firebase/auth",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_firebase_auth_dist_esm_index_esm_js-_6c000.js"
+    ]
+  },
+  "app\\upload\\page.tsx -> firebase/firestore": {
+    "id": "app\\upload\\page.tsx -> firebase/firestore",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_firebase_firestore_dist_esm_index_esm_js.js"
+    ]
+  },
+  "app\\upload\\page.tsx -> firebase/storage": {
+    "id": "app\\upload\\page.tsx -> firebase/storage",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_firebase_storage_dist_esm_index_esm_js.js"
+    ]
+  },
+  "components\\Navbar.tsx -> ../lib/firebase": {
+    "id": "components\\Navbar.tsx -> ../lib/firebase",
+    "files": [
+      "static/chunks/_app-pages-browser_src_lib_firebase_ts-_56161.js"
+    ]
+  },
+  "components\\Navbar.tsx -> firebase/auth": {
+    "id": "components\\Navbar.tsx -> firebase/auth",
+    "files": [
+      "static/chunks/_app-pages-browser_node_modules_firebase_auth_dist_esm_index_esm_js-_6c001.js"
+    ]
+  }
+}

@@ -1,0 +1,152 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  NODE_VERSION: 18
+
+jobs:
+  test-unit:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            npm-cache-${{ runner.os }}-
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+  test-integration:
+    name: Integration tests (requires Redis)
+    runs-on: ubuntu-latest
+    needs: test-unit
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd \"redis-cli ping || exit 1\"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      # Ensure tests connect to the GitHub Actions service redis on localhost
+      REDIS_URL: redis://127.0.0.1:6379
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            npm-cache-${{ runner.os }}-
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Wait for Redis to be healthy
+        run: |
+          # simple wait loop (timeout ~60s)
+          for i in {1..12}; do
+            if redis-cli -h 127.0.0.1 -p 6379 ping | grep -q PONG; then
+              echo "Redis ready"
+              exit 0
+            fi
+            echo "Waiting for redis..."
+            sleep 5
+          done
+          echo "Redis not ready" && exit 1
+
+      - name: Run integration tests
+        env:
+          REDIS_URL: ${{ env.REDIS_URL }}
+        run: npm run test:integration
+
+  test-rules:
+    name: Firestore rules tests (emulator)
+    runs-on: ubuntu-latest
+    needs: test-integration
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java (required by Firestore emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '11'
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Cache node modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            npm-cache-${{ runner.os }}-
+
+      - name: Install deps
+        run: npm ci
+
+      - name: Write Firebase service account (CI)
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+        run: |
+          echo "${{ secrets.FIREBASE_SERVICE_ACCOUNT }}" > ./ci-firebase-service-account.json
+          # protect file permissions
+          chmod 600 ./ci-firebase-service-account.json
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+
+      - name: Set FIREBASE_SERVICE_ACCOUNT_PATH env (for firebase-admin helpers)
+        if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+        run: echo "FIREBASE_SERVICE_ACCOUNT_PATH=./ci-firebase-service-account.json" >> $GITHUB_ENV
+
+      - name: Install firebase-tools (local)
+        run: npm install -g firebase-tools@latest
+
+      - name: Run rules tests with emulators
+        env:
+          # When using emulator, ensure project id is set (if needed)
+          FIREBASE_PROJECT_ID: ${{ secrets.FIREBASE_PROJECT_ID }}
+        run: |
+          # This runs your configured script that invokes firebase emulators:exec
+          npm run test:rules:exec
+
+  # Optional: a single job that runs all checks sequentially could be added,
+  # but separate jobs give parallelism and clearer logs.

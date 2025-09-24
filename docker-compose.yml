@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# Optional: If you prefer running the Firebase emulator inside Docker,
+# you can use an image that contains the emulator and java. This repo
+# usually relies on the firebase-tools installed via npm, so it's
+# commented out by default. Uncomment and configure if desired.
+
+#  firebase-emulator:
+#    image: fs-webdev/firebase-emulator:latest
+#    ports:
+#      - "8080:8080"   # Firestore
+#      - "9199:9199"   # Storage
+#    environment:
+#      - FIREBASE_PROJECT=demo-project
+#    command: ["/bin/sh", "-c", "firebase emulators:start --project=$FIREBASE_PROJECT --only firestore,storage --host 0.0.0.0"]
+#    depends_on:
+#      - redis

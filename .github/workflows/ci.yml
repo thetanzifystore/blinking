@@ -1,0 +1,151 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/**'
+      - 'feature/**'
+  pull_request:
+    branches:
+      - '**'
+  workflow_dispatch: {}
+
+jobs:
+  tests:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        # Node selection:
+        # - For pull_request or push to feature/* -> only Node 20
+        # - For push to main or release/* -> Node 18 and Node 20
+        node: ${{ fromJson((github.event_name == 'pull_request' || startsWith(github.ref, 'refs/heads/feature/')) && '["20"]' || (startsWith(github.ref, 'refs/heads/main') || startsWith(github.ref, 'refs/heads/release/')) && '["18","20"]' || '["20"]') }}
+      fail-fast: false
+
+    services:
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      REDIS_URL: redis://localhost:6379
+      FIREBASE_PROJECT: demo-project
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: 'npm'
+
+      - name: Set up Java (required for Firestore emulator)
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Restore npm cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-cache-${{ runner.os }}-node-${{ matrix.node }}-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            npm-cache-${{ runner.os }}-node-${{ matrix.node }}-
+            npm-cache-${{ runner.os }}-node-
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Fail on critical vulnerabilities
+        # Run npm audit and fail the job if any critical vulnerabilities are present.
+        run: |
+          set -o pipefail; npm audit --json | node -e "const fs=require('fs'); let input=''; process.stdin.on('data',c=>input+=c); process.stdin.on('end',()=>{ const d=JSON.parse(input||'{}'); const crit=(d.metadata&&d.metadata.vulnerabilities&&d.metadata.vulnerabilities.critical)||0; if(crit>0){ console.error('Critical vulnerabilities found:',crit); process.exit(2);} console.log('No critical vulnerabilities'); });"
+        shell: bash
+
+      - name: Start Firebase emulators (background)
+        id: start-emulators
+        run: |
+          FIRE_CMD=./node_modules/.bin/firebase
+
+          if [ ! -x "$FIRE_CMD" ]; then
+            echo "firebase CLI not found at $FIRE_CMD. Did npm ci install devDependencies?"
+            ls -la node_modules || true
+            exit 2
+          fi
+
+          cat > firebase.json <<'FIRE'
+          {
+            "emulators": {
+              "firestore": { "port": 8080 },
+              "storage": { "port": 9199 }
+            }
+          }
+          FIRE
+
+          nohup $FIRE_CMD emulators:start --project=$FIREBASE_PROJECT --only firestore,storage --host 127.0.0.1 > emulators.log 2>&1 &
+
+          echo "Waiting for Firestore emulator on http://127.0.0.1:8080"
+          for i in {1..60}; do
+            if curl -fsS http://127.0.0.1:8080/ >/dev/null 2>&1; then
+              echo "Firestore emulator ready"
+              break
+            fi
+            sleep 1
+          done
+
+          echo "Emulator logs preview:"
+          tail -n +1 emulators.log | sed -n '1,200p'
+        shell: bash
+
+      - name: Run unit tests
+        env:
+          NODE_ENV: test
+          FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
+          FIREBASE_STORAGE_EMULATOR_HOST: 127.0.0.1:9199
+        run: npm run test:unit
+
+      - name: Run integration tests
+        env:
+          NODE_ENV: test
+          REDIS_URL: ${{ env.REDIS_URL }}
+          FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
+          FIREBASE_STORAGE_EMULATOR_HOST: 127.0.0.1:9199
+        run: npm run test:integration
+
+      - name: Write Firebase service account (if provided)
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: |
+          if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
+            printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > firebase-service-account.json
+            chmod 600 firebase-service-account.json
+            echo "FIREBASE_SERVICE_ACCOUNT_PATH=$GITHUB_WORKSPACE/firebase-service-account.json" >> $GITHUB_ENV
+            echo "Wrote firebase-service-account.json and exported FIREBASE_SERVICE_ACCOUNT_PATH"
+          else
+            echo "No FIREBASE_SERVICE_ACCOUNT secret provided; skipping write"
+          fi
+        shell: bash
+
+      - name: Run rules tests (emulator)
+        env:
+          FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
+          FIREBASE_STORAGE_EMULATOR_HOST: 127.0.0.1:9199
+          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/firebase-service-account.json
+        run: npm run test:rules
+
+      - name: Upload emulator logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: emulator-logs
+          path: emulators.log

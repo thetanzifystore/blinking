@@ -1,0 +1,28 @@
+name: Firestore & Storage Rules Tests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  rules-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install test deps (rules-unit-testing)
+        run: |
+          npm ci
+          # Install rules-unit-testing and ts-node locally for running tests without modifying repo deps
+          npm install --no-audit --no-fund @firebase/rules-unit-testing@2.11.1 ts-node typescript mocha chai @types/mocha @types/chai
+
+      - name: Run rules tests
+        run: |
+          npx mocha -r ts-node/register tests/**/*.test.ts --timeout 20000

@@ -2,16 +2,19 @@
   "name": "blinking",
   "version": "1.0.0",
   "private": true,
+  
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "next lint",
-    "test:rules": "mocha -r ts-node/register tests/rules.test.ts --timeout 20000",
-    "test:unit": "mocha -r ts-node/register tests/unit/**/*.test.ts --timeout 20000",
-    "test:limiter": "ts-node tests/unit/runLimiterTests.ts",
-    "test:integration": "mocha -r ts-node/register tests/integration/**/*.test.ts --timeout 20000",
-    "test:rules:exec": "npx firebase emulators:exec \"npm run test:rules\""
+  "dev": "next dev",
+  "build": "next build",
+  "start": "next start",
+  "lint": "next lint",
+  "test": "jest",
+  "test:rules": "mocha -r ts-node/register tests/rules.test.ts --timeout 20000",
+  "test:unit": "mocha -r ts-node/register tests/unit/**/*.test.ts --timeout 20000",
+  "test:limiter": "ts-node tests/unit/runLimiterTests.ts",
+  "test:integration": "mocha -r ts-node/register tests/integration/**/*.test.ts --timeout 20000",
+  "test:rules:exec": "npx firebase emulators:exec \"npm run test:rules\"",
+  "smoke-test": "node scripts/smoke-test.js"
   },
   "dependencies": {
     "@socket.io/admin-ui": "^0.5.1",
@@ -26,6 +29,13 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "jest": "^29.7.0",
+    "@testing-library/react": "^14.0.0",
+    "@testing-library/jest-dom": "^6.0.0",
+    "@testing-library/user-event": "^14.4.3",
+    "ts-jest": "^29.1.0",
+    "jest-environment-jsdom": "^29.7.0",
+    "@types/jest": "^29.5.3",
     "firebase-tools": "11.x",
     "@firebase/rules-unit-testing": "^4.0.1",
     "@types/chai": "^4.3.4",

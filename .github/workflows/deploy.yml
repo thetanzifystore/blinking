@@ -1,0 +1,118 @@
+name: Deploy
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      smoke_url:
+        description: "URL to check after deploy"
+        required: true
+        default: "https://blinking-ai.web.app"
+      smoke_keyword:
+        description: "Keyword to assert in response"
+        required: true
+        default: "Blinking"
+
+jobs:
+  deploy:
+    name: Write Firebase service account and deploy (if secret present)
+    runs-on: ubuntu-latest
+    if: ${{ secrets.FIREBASE_SERVICE_ACCOUNT != '' }}
+    # Limit token permissions for better security
+    permissions:
+      contents: read
+    # Fail the job if it runs longer than 20 minutes
+    timeout-minutes: 20
+    # Note: secret is mapped at the step level only to minimize exposure
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Setup Node: ensure a known Node runtime and enable npm caching
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # Install deps: make sure CI has the node modules cached/installed before deploy
+      - name: Cache node_modules
+        uses: actions/cache@v3
+        with:
+          path: node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      - name: Install deps
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci
+
+      # Write service-account: create a file from the repo secret with restrictive permissions
+      - name: Write service-account
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Mask the secret in Actions logs in case any command would print it.
+          echo "::add-mask::${FIREBASE_SERVICE_ACCOUNT}"
+
+          # Create the file with restrictive permissions without printing content.
+          umask 077
+          printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > service-account.json
+          chmod 600 service-account.json
+          # Export path for downstream steps
+          echo "FIREBASE_SERVICE_ACCOUNT_PATH=$GITHUB_WORKSPACE/service-account.json" >> $GITHUB_ENV
+          # Do not print the secret or file contents. Log a harmless confirmation instead.
+          echo "Wrote service-account.json and exported FIREBASE_SERVICE_ACCOUNT_PATH"
+
+      # Verify JSON: use Node to parse the service-account file and ensure required fields exist
+      - name: Verify JSON
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e "
+            const fs = require('fs');
+            const path = process.env.FIREBASE_SERVICE_ACCOUNT_PATH;
+            const json = JSON.parse(fs.readFileSync(path, 'utf8'));
+            if (!json.project_id) throw new Error('Missing project_id');
+          "
+
+      # Deploy: run firebase-tools using the written service-account file
+      - name: Deploy
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Ensure firebase-tools uses the service account we just wrote
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$GITHUB_WORKSPACE/service-account.json" >> $GITHUB_ENV
+          # Retry deploy up to 3 times with incremental backoff to handle transient failures
+          for i in 1 2 3; do
+            if npx firebase deploy --project blinking-ai --only hosting --non-interactive; then
+              echo "Deploy succeeded"
+              exit 0
+            fi
+            echo "Deploy attempt $i failed, retrying..."
+            sleep $((i * 5))
+          done
+          echo "Deploy failed after retries"
+          exit 1
+
+      # Smoke test: quick HTTP check using Node fetch to ensure deployed site responds and contains expected content
+      - name: Post-deploy smoke test (Node with retry)
+        id: smoke_test
+        shell: bash
+        env:
+          SMOKE_URL: ${{ inputs.smoke_url }}
+          SMOKE_KEYWORD: ${{ inputs.smoke_keyword }}
+        run: |
+          set -euo pipefail
+          npm run smoke-test
+      - name: Conditional follow-up
+        if: steps.smoke_test.outputs.result == 'passed'
+        shell: bash
+        run: |
+          echo "Smoke test passed — running follow-up tasks"

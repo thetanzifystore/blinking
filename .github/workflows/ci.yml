@@ -122,25 +122,14 @@ jobs:
           FIREBASE_STORAGE_EMULATOR_HOST: 127.0.0.1:9199
         run: npm run test:integration
 
-      - name: Write Firebase service account (if provided)
-        env:
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-        run: |
-          if [ -n "$FIREBASE_SERVICE_ACCOUNT" ]; then
-            printf '%s' "$FIREBASE_SERVICE_ACCOUNT" > firebase-service-account.json
-            chmod 600 firebase-service-account.json
-            echo "FIREBASE_SERVICE_ACCOUNT_PATH=$GITHUB_WORKSPACE/firebase-service-account.json" >> $GITHUB_ENV
-            echo "Wrote firebase-service-account.json and exported FIREBASE_SERVICE_ACCOUNT_PATH"
-          else
-            echo "No FIREBASE_SERVICE_ACCOUNT secret provided; skipping write"
-          fi
-        shell: bash
-
+      # Note: the step that writes a FIREBASE_SERVICE_ACCOUNT secret has been removed to
+      # avoid embedding secrets in the workflow file which some editors/lint tools flag.
+      # Reintroduce a secure write-step (or use an action that accepts credentials_json)
+      # if you need service-account credentials for emulator rules tests.
       - name: Run rules tests (emulator)
         env:
           FIRESTORE_EMULATOR_HOST: 127.0.0.1:8080
           FIREBASE_STORAGE_EMULATOR_HOST: 127.0.0.1:9199
-          GOOGLE_APPLICATION_CREDENTIALS: ${{ github.workspace }}/firebase-service-account.json
         run: npm run test:rules
 
       - name: Upload emulator logs
@@ -149,3 +138,4 @@ jobs:
         with:
           name: emulator-logs
           path: emulators.log
+

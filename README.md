@@ -1,5 +1,7 @@
 Observability (dev metrics)
 
+[![Deploy](https://github.com/thetanzifystore/blinking/actions/workflows/deploy.yml/badge.svg)](https://github.com/thetanzifystore/blinking/actions/workflows/deploy.yml)
+
 This project includes a tiny, opt-in observability hook for the admin rate limiter.
 
 Developer quickstart
@@ -106,3 +108,17 @@ NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID=your-measurement-id
 ```
 
 If these are missing the app will throw a clear startup error telling you which keys are required.
+
+Local deploy / CI fallback
+
+- If you need to run deploy steps locally (or test deploys) you can set the `FIREBASE_SERVICE_ACCOUNT_PATH` env var to a local service account JSON file instead of relying on GitHub Secrets. Example:
+
+```bash
+# export a path to a downloaded service account JSON
+export FIREBASE_SERVICE_ACCOUNT_PATH=/path/to/service-account.json
+export GOOGLE_APPLICATION_CREDENTIALS=$FIREBASE_SERVICE_ACCOUNT_PATH
+# then run the deploy command locally
+npx firebase deploy --project blinking-ai --only hosting
+```
+
+- For local development and tests, prefer using the Firebase emulators (no service account required). See Firebase docs for starting emulators and configuring `FIRESTORE_EMULATOR_HOST` and `FIREBASE_AUTH_EMULATOR_HOST`.

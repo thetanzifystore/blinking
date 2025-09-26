@@ -1,0 +1,13 @@
+name: Retired root workflow
+
+# This workflow was moved from the repository root (was a stray placeholder)
+# to keep all workflow YAML files under .github/workflows. It is retained here
+# for audit/history; it is not active.
+
+on: [workflow_dispatch]
+
+jobs:
+  noop:
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Retired root workflow moved into .github/workflows"

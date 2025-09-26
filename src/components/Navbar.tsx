@@ -4,6 +4,7 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import Toast from "../components/Toast";
+import { useRouter } from "next/navigation";
 
 type MinimalUser = {
 	uid: string;
@@ -20,6 +21,7 @@ function getInitials(input: string) {
 }
 
 export default function Navbar() {
+	const router = useRouter();
 	const [user, setUser] = useState<MinimalUser | null>(null);
 	const [menuOpen, setMenuOpen] = useState(false);
 	const menuRef = React.useRef<HTMLDivElement | null>(null);
@@ -114,6 +116,8 @@ export default function Navbar() {
 			setUser(null);
 			// show toast to confirm sign out
 			setShowToast(true);
+			// redirect to login after sign out
+			router.push('/login');
 		} catch (err) {
 			console.error("Sign out failed", err);
 		}
@@ -142,80 +146,17 @@ export default function Navbar() {
 					<Link href="/upload" className="text-sm text-slate-700 hover:text-slate-900">Upload</Link>
 
 					{user ? (
-						<div className="relative" ref={menuRef}>
-							<button
-								aria-haspopup="true"
-								aria-expanded={menuOpen}
-								onClick={() => setMenuOpen((s) => !s)}
-								ref={toggleRef}
-								className="flex items-center gap-2 text-sm text-slate-700 hover:text-slate-900"
-							>
-								{user.photoURL ? (
-									<Image src={user.photoURL} alt="avatar" width={24} height={24} className="rounded-full object-cover" unoptimized />
-								) : (
-									<div className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-200 text-xs font-medium text-slate-700">{getInitials(user.displayName ?? user.email ?? "U")}</div>
-								)}
-								<span>{user.displayName ?? user.email ?? "Profile"}</span>
-							</button>
-
-							{menuOpen && (
-								<div
-									role="menu"
-									aria-label="User menu"
-									className="absolute right-0 mt-2 w-40 rounded-md border bg-white shadow-lg py-1 z-50"
-									onKeyDown={(e) => {
-										// Trap focus: if Tab on last item or Shift+Tab on first, close menu to allow natural flow
-										if (e.key === "Escape") {
-											e.preventDefault();
-											setMenuOpen(false);
-											return;
-										}
-
-										if (e.key === "Tab") {
-											const focusable = menuRef.current?.querySelectorAll<HTMLElement>("a[role=menuitem], button[role=menuitem], a[href]");
-											if (!focusable || focusable.length === 0) return;
-											const first = focusable[0];
-											const last = focusable[focusable.length - 1];
-
-											if (!e.shiftKey && document.activeElement === last) {
-												// tabbing forward from last -> close menu and let focus continue
-												setMenuOpen(false);
-												return;
-											}
-
-											if (e.shiftKey && document.activeElement === first) {
-												// shift+tab on first -> close menu and let focus continue
-												setMenuOpen(false);
-												return;
-											}
-										}
-									}}
-									ref={menuRef}
-								>
-									<Link href={`/u/${user.displayName ?? user.uid}`} ref={firstItemRef as any} className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" role="menuitem">Profile</Link>
-									<Link href="/settings" className="block px-3 py-2 text-sm text-slate-700 hover:bg-slate-50" role="menuitem">Settings</Link>
-									<button role="menuitem" onClick={() => { setMenuOpen(false); handleSignOut(); }} className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-slate-50">Sign out</button>
-								</div>
-							)}
-						</div>
+						<button onClick={handleSignOut} className="text-sm text-slate-700 hover:text-slate-900">Sign out</button>
 					) : (
-						<>
-							<Link href="/login" ref={loginRef} className="text-sm text-slate-700 hover:text-slate-900">Login</Link>
-							<Link href="/signup" className="text-sm text-slate-700 hover:text-slate-900">Signup</Link>
-						</>
+						<Link href="/login" ref={loginRef} className="text-sm text-slate-700 hover:text-slate-900">Login</Link>
 					)}
 				</nav>
 
 				<div className="md:hidden">
 					{user ? (
-						<div className="flex items-center gap-3">
-							<Link href={`/u/${user.displayName ?? user.uid}`} className="text-sm text-slate-700">Profile</Link>
-							<button onClick={handleSignOut} className="text-sm text-slate-700">Sign out</button>
-						</div>
+						<button onClick={handleSignOut} className="text-sm text-slate-700">Sign out</button>
 					) : (
-						<div className="flex items-center gap-3">
-							<Link href="/discover" className="text-sm text-slate-700">Menu</Link>
-						</div>
+						<Link href="/login" className="text-sm text-slate-700">Login</Link>
 					)}
 				</div>
 			</div>

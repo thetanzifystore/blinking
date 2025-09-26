@@ -5,7 +5,8 @@ import dynamicImport from 'next/dynamic';
 
 const LogoutButton = dynamicImport(() => import('../LogoutButton'), { ssr: false });
 
-export const dynamic = 'force-dynamic';
+// This page is server-only and will be prerendered when possible. Avoid forcing
+// dynamic rendering so `output: 'export'` can export the page statically.
 
 type Action = {
   id: string;

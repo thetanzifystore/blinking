@@ -1,5 +1,4 @@
 import React from "react";
-export const dynamic = "force-dynamic";
 import Link from "next/link";
 
 type Shot = {
@@ -11,8 +10,7 @@ type Shot = {
 
 export default async function DiscoverPage() {
   const mod = await import("../../lib/firebase");
-  // Use the real Firestore getter for server-side/server-component usage so
-  // the modular `collection()` helper receives a true Firestore instance.
+  // Ensure server-side code passes a concrete Firestore instance to collection()
   const db = mod.getDb ? mod.getDb() : mod.db;
   const { collection, query, orderBy, limit, getDocs } = await import("firebase/firestore");
 

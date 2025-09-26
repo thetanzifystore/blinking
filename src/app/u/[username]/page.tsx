@@ -1,14 +1,39 @@
 import React from "react";
 import { notFound } from "next/navigation";
+import { promises as fs } from "fs";
+import path from "path";
 
 type Params = { params: { username: string } };
+
+// generateStaticParams allows Next to statically export dynamic user pages when
+// `output: 'export'` is enabled. It reads `static-usernames.json` at the repo root
+// (if present) and uses those usernames as the pages to export. If the file
+// is missing, it returns an empty array (no dynamic pages will be exported).
+export async function generateStaticParams() {
+  try {
+    const p = path.join(process.cwd(), 'static-usernames.json');
+    const text = await fs.readFile(p, 'utf8');
+    const arr = JSON.parse(text);
+    if (!Array.isArray(arr)) return [];
+    return arr.map((u: any) => ({ username: String(u) }));
+  } catch (e) {
+    // No file or parse error — export no dynamic user pages to keep builds deterministic.
+    // This is safe and avoids requiring live DB access during build.
+    // You can add usernames to static-usernames.json to export specific user pages.
+    // eslint-disable-next-line no-console
+    console.warn('generateStaticParams: static-usernames.json not found or invalid — exporting no dynamic user pages.');
+    return [];
+  }
+}
 
 export default async function UserPage({ params }: Params) {
   const { username } = params;
 
   // dynamic import so build/prerender doesn't require env vars at import-time
   const mod = await import("../../../lib/firebase");
-  const db = mod.db;
+  // Use the real Firestore getter for server-side/server-component usage so
+  // the modular `collection()` helper receives a true Firestore instance.
+  const db = mod.getDb ? mod.getDb() : mod.db;
   const { collection, query, where, getDocs } = await import("firebase/firestore");
 
   const usersCol = collection(db, "users");

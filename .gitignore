@@ -1,1 +1,10 @@
 node_modules
+/.next
+.env.local
+.env
+.env.*.local
+dist
+coverage
+.idea
+.vscode
+*.log

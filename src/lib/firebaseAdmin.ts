@@ -57,6 +57,18 @@ function getServiceAccount(): ServiceAccount {
   if (fromEnv) return fromEnv;
   const fromPath = readServiceAccountFromPath();
   if (fromPath) return fromPath;
+  // If running with emulators locally, allow initializing admin with defaults
+  // so dev and CI emulator runs don't require a service account file.
+  const usingEmulator = !!(
+    process.env.FIRESTORE_EMULATOR_HOST || process.env.FIREBASE_EMULATOR_HOST
+  );
+  if (usingEmulator) {
+    // Return a minimal object with project_id if available. firebase-admin
+    // can pick up application default credentials or the emulator will allow
+    // unauthenticated admin usage for local testing.
+    return { project_id: process.env.FIREBASE_PROJECT || undefined };
+  }
+
   throw new Error(
     "Missing Firebase service account. Set FIREBASE_SERVICE_ACCOUNT (JSON) or FIREBASE_SERVICE_ACCOUNT_PATH."
   );
@@ -76,10 +88,28 @@ export function getAdminApp() {
 
   const cred = getServiceAccount();
 
+  // If cred has private_key/client_email treat as a service account cert.
+  let credential: any;
+  if (cred && (cred as ServiceAccount).private_key && (cred as ServiceAccount).client_email) {
+    credential = admin.credential.cert(cred);
+  } else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    credential = admin.credential.applicationDefault();
+  } else {
+    // Fallback for emulator runs / minimal env: use applicationDefault if
+    // available, otherwise leave credential undefined to let admin auto-init
+    // (useful when emulator accepts unauthenticated admin access).
+    try {
+      credential = admin.credential.applicationDefault();
+    } catch (err) {
+      credential = undefined;
+    }
+  }
+
   const app = admin.initializeApp({
-    credential: admin.credential.cert(cred),
+    credential,
     // Optionally allow overriding storageBucket/projectId via env
     storageBucket: process.env.FIREBASE_STORAGE_BUCKET || undefined,
+    projectId: (cred && (cred as ServiceAccount).project_id) || process.env.FIREBASE_PROJECT || undefined,
   });
 
   g.__blinking_firebase_admin_app = app;

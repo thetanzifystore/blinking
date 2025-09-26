@@ -16,7 +16,7 @@
   "test:limiter": "ts-node tests/unit/runLimiterTests.ts",
   "test:integration": "mocha -r ts-node/register tests/integration/**/*.test.ts --timeout 20000",
   "test:rules:exec": "npx firebase emulators:exec --only firestore,storage --project demo-project \"npm run test:rules\"",
-  "smoke-test": "node scripts/smoke-test.js"
+    "smoke-test": "npm run build && node scripts/serve-and-smoke.js"
   },
   "dependencies": {
     "@socket.io/admin-ui": "^0.5.1",

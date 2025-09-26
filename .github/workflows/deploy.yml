@@ -51,6 +51,23 @@ jobs:
           set -euo pipefail
           npm ci
 
+      # Local smoke-test: start a local static server from the exported files and run the smoke check.
+      # This must run before the remote firebase deploy so we only deploy if the export looks healthy.
+      - name: Local smoke-test (serve .next/out and check)
+        shell: bash
+        env:
+          SMOKE_KEYWORD: ${{ inputs.smoke_keyword }}
+          INITIAL_DELAY_MS: 500
+        run: |
+          set -euo pipefail
+          # Ensure the site was exported to .next/out by the build step (postbuild should have run)
+          if [ ! -d ".next/out" ]; then
+            echo ".next/out not found — ensure your build/export produced static output" >&2
+            exit 1
+          fi
+          # Run the local one-shot serve-and-smoke helper; it will exit non-zero on failure.
+          node scripts/serve-and-smoke.js
+
       # Write service-account: create a file from the repo secret with restrictive permissions
       - name: Write service-account
         env:

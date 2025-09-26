@@ -1,0 +1,10 @@
+// Dev-only permissive Storage rules
+// Use only for local development and testing. DO NOT deploy these to production.
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /{allPaths=**} {
+      allow read, write: if true;
+    }
+  }
+}

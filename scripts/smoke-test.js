@@ -1,5 +1,15 @@
-const https = require('https');
 const fs = require('fs');
+const { URL } = require('url');
+
+// choose http or https lib depending on the URL protocol so local http servers work
+function chooseLib(u) {
+  try {
+    const parsed = new URL(u);
+    return parsed.protocol === 'https:' ? require('https') : require('http');
+  } catch (e) {
+    return require('https');
+  }
+}
 
 const url = process.env.SMOKE_URL || 'https://blinking-ai.web.app';
 const keyword = process.env.SMOKE_KEYWORD || 'Blinking';
@@ -30,7 +40,8 @@ function annotateError(msg) {
 }
 
 function attemptFetch(attempt = 1) {
-  https.get(url, res => {
+  const lib = chooseLib(url);
+  lib.get(url, res => {
     let data = '';
     res.on('data', chunk => data += chunk);
     res.on('end', () => {
@@ -42,7 +53,10 @@ function attemptFetch(attempt = 1) {
         process.exit(0);
       } else {
         if (attempt >= MAX_RETRIES) {
+          // include a short preview of the body for diagnostics
+          const preview = (data || '').slice(0, 400).replace(/\s+/g, ' ').trim();
           annotateError(`Smoke test failed after ${attempt} attempts (status: ${res.statusCode})`);
+          if (preview) annotateError(`Response preview: ${preview}`);
           setOutput('failed');
           console.error('❌ Smoke test failed: keyword not found or bad status', res.statusCode);
           process.exit(1);

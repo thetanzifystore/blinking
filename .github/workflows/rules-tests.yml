@@ -66,20 +66,33 @@ jobs:
           CI: true
         run: |
           set -euo pipefail
-          max_attempts=2
+          # Sanity: list firebase config and rules files so CI logs show their presence
+          echo "Listing firebase config and rules files in workspace:"
+          ls -la . | sed -n '1,200p' || true
+          echo "--- firebase.json ---"
+          sed -n '1,200p' firebase.json || true
+          echo "--- firestore.rules (exists?) ---"
+          test -f firestore.rules && echo "firestore.rules exists" || echo "firestore.rules missing"
+          echo "--- firebase.rules (exists?) ---"
+          test -f firebase.rules && echo "firebase.rules exists" || echo "firebase.rules missing"
+          echo "--- storage.rules (exists?) ---"
+          test -f storage.rules && echo "storage.rules exists" || echo "storage.rules missing"
+
+          max_attempts=3
           attempt=1
           until [ $attempt -gt $max_attempts ]
           do
             echo "Starting emulators (attempt #$attempt)..."
-            if npx firebase emulators:exec "npm run test:rules"; then
+            # Use explicit config and only flags to avoid accidental emulator selection issues
+            if npx firebase emulators:exec --only firestore,storage --config ./firebase.json "npm run test:rules"; then
               echo "Rules tests passed"
               break
             else
               echo "Emulator run failed"
               attempt=$((attempt+1))
               if [ $attempt -le $max_attempts ]; then
-                echo "Retrying after short backoff..."
-                sleep 3
+                echo "Retrying after backoff..."
+                sleep $((10 * attempt))
               fi
             fi
           done

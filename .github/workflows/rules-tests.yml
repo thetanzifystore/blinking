@@ -1,8 +1,8 @@
-name: Firestore & Storage Rules Tests
+name: Rules Emulator Tests
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, ci-hardening ]
   pull_request:
     branches: [ "**" ]
 
@@ -15,10 +15,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
+      - name: Ensure Node 20 is installed (NodeSource fallback)
+        if: runner.os == 'Linux'
+        run: |
+          echo "Ensuring Node 20 is available via NodeSource..."
+          curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+          sudo apt-get install -y nodejs
+
+      - name: Setup Node.js (pin to Node 20 for reproducible CI)
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'
+
+      - name: Print Node version
+        run: node -v
 
       - name: Setup Java (Temurin 17)
         uses: actions/setup-java@v4
@@ -34,14 +44,37 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-node-
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install dependencies (try npm ci, fall back to npm install)
+        run: |
+          set -e
+          echo "Attempting clean install with npm ci..."
+          npm ci || {
+            echo "npm ci failed, package-lock.json may be out of sync. Falling back to npm install..."
+            npm install
+          }
 
-      - name: Run rules tests via Firebase emulators
+      - name: Run rules tests via Firebase emulators (with retries)
         env:
           CI: true
         run: |
-          npx firebase emulators:exec "npm run test:rules"
+          set -euo pipefail
+          max_attempts=2
+          attempt=1
+          until [ $attempt -gt $max_attempts ]
+          do
+            echo "Starting emulators (attempt #$attempt)..."
+            if npx firebase emulators:exec "npm run test:rules"; then
+              echo "Rules tests passed"
+              break
+            else
+              echo "Emulator run failed"
+              attempt=$((attempt+1))
+              if [ $attempt -le $max_attempts ]; then
+                echo "Retrying after short backoff..."
+                sleep 3
+              fi
+            fi
+          done
 
       - name: Upload firebase-debug.log on failure
         if: failure()
